@@ -3,6 +3,7 @@ import argparse
 import enum
 import numpy as np
 import pandas as pd
+import pickle
 import sqlite3
 
 from scipy import stats
@@ -165,7 +166,7 @@ class StockChoose:
 
     def _get_profit_score(self):
         profit = self.df['DEDUCT_PARENT_NETPROFIT'] / self.df['OPERATE_INCOME']
-        return self._calculate(profit)
+        return self._calculate(profit), np.mean(profit[:4]), profit[0]
 
 
     def judge(self):
@@ -180,9 +181,11 @@ class StockChoose:
             score = self._get_score(type)
             desc += f",{type},{score}"
             total_score += score
-        score = self._get_profit_score()
-        desc += f",PROFIT_MARGIN,{score}"
+        score, avg_profit, latest_profit = self._get_profit_score()
+        desc += f",PROFIT_MARGIN,{score},LATEST_PROFIT,{latest_profit},AVG_PROFIT,{avg_profit}"
         total_score += score
+        OPERATE_INCOME_YOY = self.df['OPERATE_INCOME_YOY'][0]
+        desc += f',OPERATE_INCOME_YOY,{OPERATE_INCOME_YOY}'
         return total_score, desc
         # loiy = self._latest_operate_income_yoy()
         # if loiy[1] < 0:
@@ -215,14 +218,13 @@ if __name__ == "__main__":
     parser.add_argument('--prev', default=0, type=int)
     parser.add_argument('--code', default=None, type=str)
 
-    parser.add_argument('--threshold', default=50, type=int)
-
     args = parser.parse_args()
 
     db_name = 'data/financial_data.db'
     conn = sqlite3.connect(db_name)  # 数据库文件名为financial_data.db
 
-    with open("data/all_result.txt", 'w') as f_all:
+    result_dict = {}
+    with open("data/all_result.pkl", 'wb') as f_all:
         for area in [get_code_sz(), get_code_sh()]:
             for i, code in enumerate(area):
                 if args.code is not None:
@@ -247,7 +249,7 @@ if __name__ == "__main__":
                 if args.code is not None:
                     print(result)
                     exit(0)
-                f_all.write(result)
+                result_dict[code] = result
+        pickle.dump(result_dict, f_all)
         
     conn.close()
-        

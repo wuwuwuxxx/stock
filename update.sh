@@ -1,0 +1,2 @@
+python3 stock_update.py
+python3 stock_analysis.py

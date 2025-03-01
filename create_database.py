@@ -1,9 +1,9 @@
-import pandas as pd
-import sqlite3
 import akshare as ak
-import time
 import os
+import pandas as pd
 import random
+import sqlite3
+import time
 
 from utils import get_code_sh, get_code_sz
 
