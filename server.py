@@ -7,7 +7,7 @@ def run_script():
     subprocess.run(["bash", "update.sh"])
 
 # 每隔3小时执行一次
-schedule.every(5).hours.do(run_script)
+schedule.every(6).hours.do(run_script)
 
 while True:
     schedule.run_pending()
