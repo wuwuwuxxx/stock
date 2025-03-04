@@ -76,5 +76,12 @@ def update_all():
     with open(f"data/result_0.pkl", 'wb') as prev_f:
         pickle.dump(prev, prev_f)
 
+def show(code):
+    for i in range(12):
+        with open(f"data/result_{i}.pkl", 'rb') as f:
+            data = pickle.load(f)
+            print(data[code])
+
 if __name__ == "__main__":
-    update_all()
+    # update_all()
+    show('sz300502')
