@@ -1,2 +1,2 @@
-python3 stock_update.py
-python3 stock_analysis.py
+python3 -u stock_update.py
+python3 -u stock_analysis.py

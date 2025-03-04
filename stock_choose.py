@@ -34,7 +34,7 @@ class StockChoose:
     def name(self):
         return self.df['SECUCODE'][0], self.df['SECURITY_NAME_ABBR'][0]
     
-    def _mom_score(self, data):
+    def _mom_score(self, data, yoy=False):
         score = self.base_score
         mean = np.mean(data)
         # std = np.std(data)
@@ -48,6 +48,11 @@ class StockChoose:
                 growth_rate = (data[j-1] - data[j]) / abs(data[j])
             else:
                 growth_rate = (data[j-1] - data[j]) / data[j]
+            if j == 1:
+                if yoy:
+                    self.yoy = growth_rate
+                else:
+                    self.mom = growth_rate
             score += growth_rate
             if growth_rate <= 0:
                 break
@@ -60,7 +65,7 @@ class StockChoose:
         for i in range(0, self.data_range, 4):
             year_total = sum(data[i:i+4])
             annual_sum.append(year_total)
-        return self._mom_score(annual_sum)
+        return self._mom_score(annual_sum, yoy=True)
     
     def _base_score(self, data):
         ret, conf = self._detect_trend(data)
@@ -159,6 +164,8 @@ class StockChoose:
     
     def _calculate(self, data):
         score = 0
+        self.yoy = 0
+        self.mom = 0
         score += self._yoy_score(data)
         if score > 0:
             score += self._mom_score(data)
@@ -179,36 +186,13 @@ class StockChoose:
                 if mask.sum() > 0:
                     self.df.loc[mask, type] = self.df.loc[mask, 'NETPROFIT']
             score = self._get_score(type)
-            desc += f",{type},{score}"
+            desc += f",{type},{score},{type}_YOY,{self.yoy},{type}_MOM,{self.mom}"
             total_score += score
         score, avg_profit, latest_profit = self._get_profit_score()
         desc += f",PROFIT_MARGIN,{score},LATEST_PROFIT,{latest_profit},AVG_PROFIT,{avg_profit}"
         total_score += score
-        OPERATE_INCOME_YOY = self.df['OPERATE_INCOME_YOY'][0]
-        desc += f',OPERATE_INCOME_YOY,{OPERATE_INCOME_YOY}'
         return total_score, desc
-        # loiy = self._latest_operate_income_yoy()
-        # if loiy[1] < 0:
-        #     with open("bad.txt", 'a') as f:
-        #         f.write(f"{self.name()}\n")
-        # else:
-        #     with open("good.txt", 'a') as f:
-        #         f.write(f"{self.name()}\n")
-        
-
-# # 定义股票代码和日期范围
-# stock_code = 'sz000001'
-
-
-# # 获取平安银行的季度利润表数据（股票代码需带市场前缀，平安银行为sz000001）
-# df = ak.stock_profit_sheet_by_report_em(symbol=stock_code)
-
-# df.to_csv('tmp.csv', index=False, encoding='utf-8')
-# # breakpoint()
-
-# df = pd.read_csv("tmp.csv")
-# sc = StockChoose(df)
-# sc.judge()
+       
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -217,39 +201,42 @@ if __name__ == "__main__":
 
     parser.add_argument('--prev', default=0, type=int)
     parser.add_argument('--code', default=None, type=str)
+    parser.add_argument('--dur', default=12, type=int)
 
     args = parser.parse_args()
 
     db_name = 'data/financial_data.db'
     conn = sqlite3.connect(db_name)  # 数据库文件名为financial_data.db
 
-    result_dict = {}
-    with open("data/all_result.pkl", 'wb') as f_all:
-        for area in [get_code_sz(), get_code_sh()]:
-            for i, code in enumerate(area):
-                if args.code is not None:
-                    code = args.code
-                query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1 + args.prev}"
-                df = pd.read_sql(query, conn)
-                if len(df) != StockChoose.range + 1 + args.prev:
-                    print(f"data is not enough for {code}")
-                    continue
-                name: str = df['SECURITY_NAME_ABBR'][0]
-                # st
-                if name.startswith('S'):
-                    continue
-                if args.prev == 0:
-                    sc = StockChoose(df)
-                else:
-                    sc = StockChoose(df[args.prev:].copy().reset_index(drop=True))
-                score, desc = sc.judge()
-                org_type = df['ORG_TYPE'][0]
-                result = f"{code},{name},{org_type},{score}{desc}\n"
+    for i in range(args.dur):
+        result_dict = {}
+        args.prev = i
+        with open(f"data/result_{i}.pkl", 'wb') as f_all:
+            for area in [get_code_sz(), get_code_sh()]:
+                for i, code in enumerate(area):
+                    if args.code is not None:
+                        code = args.code
+                    query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1 + args.prev}"
+                    df = pd.read_sql(query, conn)
+                    if len(df) != StockChoose.range + 1 + args.prev:
+                        print(f"data is not enough for {code}")
+                        continue
+                    name: str = df['SECURITY_NAME_ABBR'][0]
+                    # st
+                    if name.startswith('S'):
+                        continue
+                    if args.prev == 0:
+                        sc = StockChoose(df)
+                    else:
+                        sc = StockChoose(df[args.prev:].copy().reset_index(drop=True))
+                    score, desc = sc.judge()
+                    org_type = df['ORG_TYPE'][0]
+                    result = f"{code},{name},{org_type},{score}{desc}\n"
 
-                if args.code is not None:
-                    print(result)
-                    exit(0)
-                result_dict[code] = result
-        pickle.dump(result_dict, f_all)
+                    if args.code is not None:
+                        print(result)
+                        exit(0)
+                    result_dict[code] = result
+            pickle.dump(result_dict, f_all)
         
     conn.close()

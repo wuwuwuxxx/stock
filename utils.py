@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import pickle
 import requests
 
 
@@ -48,3 +49,32 @@ def send_serverchan_notification(title, message):
         print(message)
     else:
         print(f"推送失败: {response.status_code}")
+
+
+def update_all():
+    with open("data/result_update.pkl", 'rb') as f:
+        updated: dict = pickle.load(f)
+    for i in range(11, 0, -1):
+        with open(f"data/result_{i}.pkl", 'rb') as prev_f:
+            prev = pickle.load(prev_f)
+        with open(f"data/result_{i-1}.pkl", 'rb') as prev_f:
+            cur = pickle.load(prev_f)
+        for k in updated.keys():
+            try:
+                prev[k] = cur[k]
+            except KeyError:
+                pass
+        with open(f"data/result_{i}.pkl", 'wb') as prev_f:
+            pickle.dump(prev, prev_f)
+    with open(f"data/result_0.pkl", 'rb') as prev_f:
+        prev = pickle.load(prev_f)
+    for k in updated.keys():
+        try:
+            prev[k] = updated[k]
+        except KeyError:
+            pass
+    with open(f"data/result_0.pkl", 'wb') as prev_f:
+        pickle.dump(prev, prev_f)
+
+if __name__ == "__main__":
+    update_all()

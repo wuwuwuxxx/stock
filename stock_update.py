@@ -6,11 +6,11 @@ import random
 import sqlite3
 import time
 
-from utils import code_complete, get_done_codes
+from utils import code_complete, get_done_codes, update_all
 from stock_choose import StockChoose
 
-years = ['2024']#, '2025']
-targets = ['年报']#, '一季']
+years = ['2024', '2025']
+targets = ['年报', '一季']
 
 period_map = {}
 for year in years:
@@ -22,18 +22,23 @@ for year in years:
 periods = [year + target for year, target in zip(years, targets)]
 
 for period in periods:
+    time.sleep(10)
     target = period_map[period]
     done_codes = get_done_codes(period)
-    # 获取A股财报预约披露日期
-    df = ak.stock_report_disclosure(period=period)
+    try:
+        # 获取A股财报预约披露日期
+        df = ak.stock_report_disclosure(period=period)
+    except ValueError: # error if no data
+        continue
 
     db_name = 'data/financial_data.db'
 
     conn = sqlite3.connect(db_name)  # 数据库文件名为financial_data.db
 
-    with open("data/all_result.pkl", 'rb') as f:
-        analysis_data = pickle.load(f)
+    # with open("data/result_update.pkl", 'rb') as f:
+    #     analysis_data = pickle.load(f)
 
+    analysis_data = {}
             
     count = 0
     dates = df['实际披露']
@@ -85,6 +90,9 @@ for period in periods:
 
     conn.close()
 
-    with open("data/all_result.pkl", 'wb') as f_all:
-        pickle.dump(analysis_data, f_all)
     print(f"{period}, update {count} company in {datetime.datetime.now()}")
+    if count > 0:
+        with open("data/result_update.pkl", 'wb') as f_all:
+            pickle.dump(analysis_data, f_all)
+        update_all()
+       
