@@ -33,10 +33,11 @@ old_good = old_good - done
 new_good = {}
 count = {}
 msg = "new:\n{}\nremoved:\n{}"
+
+new = ""
 for i in range(12):
     with open(ALL.format(i), 'rb') as f:
         analysis_data: dict = pickle.load(f)
-        new = ""
         for code, line in analysis_data.items():
             data = line.split(',')
             code = data[0]
