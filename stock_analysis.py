@@ -1,3 +1,4 @@
+import heapq
 import os
 import pickle
 import warnings
@@ -30,7 +31,7 @@ old_good = get_prev_good()
 done = get_done()
 old_good = old_good - done
 
-new_good = {}
+new_good = []
 count = {}
 msg = "new:\n{}\nremoved:\n{}"
 
@@ -50,9 +51,10 @@ for i in range(12):
             deduct_netprofit_yoy = float(data[13])
             deduct_netprofit_mom = float(data[15])
             # if score > 50 and avg_profit > 0.20 and operate_income_yoy > 30:
-            if score > 50 and deduct_netprofit_yoy > 0.20 and avg_profit > 0.15 and operate_income_yoy > 0.05:
+            if score > 50 and deduct_netprofit_yoy > 0.20 and (avg_profit > 0.2 or latest_profit > 0.2) and operate_income_yoy > 0.05:
                 if i == 0:
-                    new_good[code] = line
+                    sort_score = deduct_netprofit_yoy + operate_income_yoy
+                    heapq.heappush(new_good, (-sort_score, code, line))
                     count[code] = 1
                     if code not in old_good:
                         new += f"{data[0]},{data[1]}  "
@@ -75,6 +77,7 @@ else:
     print(msg)
 
 with open(GOOD, 'w') as f:
-    for k, v in new_good.items():
-        num = count[k]
-        f.write(f"count,{num},"+v)
+    while new_good:
+        priority, code, line = heapq.heappop(new_good)
+        num = count[code]
+        f.write(f"count,{num},"+ line)
