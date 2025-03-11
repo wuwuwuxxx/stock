@@ -3,7 +3,7 @@ import os
 import pickle
 import warnings
 
-from utils import send_serverchan_notification
+from utils import send_serverchan_notification, get_file_hash
 
 GOOD = "data/good.txt"
 DONE = "data/done.txt"
@@ -27,6 +27,7 @@ def get_done():
                 codes.add(data[0])
     return codes
 
+old_hash = get_file_hash(GOOD)
 old_good = get_prev_good()
 done = get_done()
 old_good = old_good - done
@@ -69,15 +70,21 @@ for v in old_good:
     removed += f"{v}, "
     warnings.warn(f"{v} is removed in the newest season")
 
-SEND = True
-msg = msg.format(new, removed)
-if SEND:
-    send_serverchan_notification("cg", msg)
-else:
-    print(msg)
 
 with open(GOOD, 'w') as f:
     while new_good:
         priority, code, line = heapq.heappop(new_good)
         num = count[code]
         f.write(f"count,{num},"+ line)
+
+new_hash = get_file_hash(GOOD)
+
+SEND = True
+msg = msg.format(new, removed)
+
+if new_hash != old_hash:
+    msg += '\nhash changed!'
+if SEND:
+    send_serverchan_notification("cg", msg)
+else:
+    print(msg)

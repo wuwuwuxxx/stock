@@ -1,3 +1,4 @@
+import hashlib
 import os
 import pandas as pd
 import pickle
@@ -83,6 +84,14 @@ def show(code):
             data = pickle.load(f)
             print(data[code])
 
+def get_file_hash(file_path):
+    hasher = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        while chunk := f.read(4096):  # 分块读取避免大文件内存消耗
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
 if __name__ == "__main__":
     # update_all()
-    show('sz300502')
+    # show('sz300502')
+    print(get_file_hash("data/good.txt"))
