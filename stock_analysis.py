@@ -24,7 +24,7 @@ def get_done():
         with open(DONE) as f:
             for line in f:
                 data = line.split(',')
-                codes.add(data[0])
+                codes.add(data[2])
     return codes
 
 old_hash = get_file_hash(GOOD)

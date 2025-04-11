@@ -8,9 +8,19 @@ import time
 
 from utils import code_complete, get_done_codes, update_all
 from stock_choose import StockChoose
+from datetime import datetime as dt
 
 years = ['2024', '2025']
 targets = ['年报', '一季']
+
+# df = ak.stock_zh_a_spot()
+# print(df[["代码", "名称"]].head())
+#          代码    名称                                                                                                                                                                                                 
+# 0  bj430017  星昊医药
+# 1  bj430047  诺思兰德
+# 2  bj430090  同辉信息
+# 3  bj430139  华岭股份
+# 4  bj430198  微创光电
 
 period_map = {}
 for year in years:
@@ -45,14 +55,18 @@ for period in periods:
     codes = df['股票代码']
     for date_time, code in zip(dates, codes):
         if not pd.isna(date_time):
-            if int(code) > 699999:
-                continue
             code = code_complete(code)
             if code in done_codes:
                 continue
-            df = ak.stock_profit_sheet_by_report_em(symbol=code)
+            try:
+                df = ak.stock_profit_sheet_by_report_em(symbol=code)
+            except:
+                assert 0, f"{code} not found"
 
-            if target != df['REPORT_DATE'][0]:
+
+            format = r'%Y-%m-%d %H:%M:%S'
+            if dt.strptime(target, format) > dt.strptime(df['REPORT_DATE'][0], format):
+                print(target)
                 continue
             
             date_columns = ['REPORT_DATE', 'NOTICE_DATE', 'UPDATE_DATE']

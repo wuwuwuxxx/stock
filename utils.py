@@ -27,11 +27,13 @@ def get_done_codes(period):
     
 
 def code_complete(code: str):
-    tmp = int(code)
-    if tmp < 600000:
-        return 'sz' + code
-    elif 600000 < tmp < 699999:
+    # tmp = int(code)
+    if code.startswith(('6', '90')):
         return 'sh' + code
+    elif code.startswith(('0', '2', '3')):
+        return 'sz' + code
+    elif code.startswith(('8', '4', '92')):
+        return 'bj' + code
     else:
         assert 0, f"not supported {code}"
         

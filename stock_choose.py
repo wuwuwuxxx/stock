@@ -25,7 +25,7 @@ class Stat(enum.Enum):
     Other = 3
 
 class StockChoose:
-    range = 16 # 5 years
+    range = 12 # 5 years
     def __init__(self, df: pd.DataFrame):
         self.df = df
         self.data_range = StockChoose.range
@@ -36,14 +36,14 @@ class StockChoose:
     
     def _mom_score(self, data, yoy=False):
         score = self.base_score
-        mean = np.mean(data)
+        # mean = np.mean(data)
         # std = np.std(data)
         # print(f"std {}")
         for j in range(1, min(len(data), self.data_range)):
-            trust_score = abs(data[j] / mean)
-            if trust_score < 0.02:
-                score += -10
-                break
+            # trust_score = abs(data[j] / mean)
+            # if trust_score < 0.02:
+            #     score += -10
+            #     break
             if data[j] < 0:
                 growth_rate = (data[j-1] - data[j]) / abs(data[j])
             else:
