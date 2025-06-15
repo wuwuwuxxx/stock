@@ -99,7 +99,7 @@ for period in periods:
             analysis_data[code] = result
 
             count += 1
-            time.sleep(random.uniform(3, 8))
+            time.sleep(random.uniform(1, 5))
 
 
     conn.close()

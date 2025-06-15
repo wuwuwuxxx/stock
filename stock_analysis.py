@@ -3,10 +3,11 @@ import os
 import pickle
 import warnings
 
-from utils import send_serverchan_notification, get_file_hash
+from utils import send_serverchan_notification, get_file_hash, code_complete
 
-GOOD = "data/good.txt"
+GOOD = "data/good_gq.txt"
 DONE = "data/done.txt"
+GQ = "data/gq.txt"
 ALL = "data/result_{}.pkl"
 
 def get_prev_good():
@@ -27,9 +28,20 @@ def get_done():
                 codes.add(data[2])
     return codes
 
-old_hash = get_file_hash(GOOD)
+def get_gq():
+    codes = set()
+    if os.path.exists(GQ):
+        with open(GQ) as f:
+            for line in f:
+                data = line.strip()
+                codes.add(code_complete(data))
+    return codes
+
+
+# old_hash = get_file_hash(GOOD)
 old_good = get_prev_good()
 done = get_done()
+gq = get_gq()
 old_good = old_good - done
 
 new_good = []
@@ -52,7 +64,8 @@ for i in range(12):
             deduct_netprofit_yoy = float(data[13])
             deduct_netprofit_mom = float(data[15])
             # if score > 50 and avg_profit > 0.20 and operate_income_yoy > 30:
-            if score > 50 and deduct_netprofit_yoy > 0.20 and (avg_profit > 0.2 or latest_profit > 0.2) and operate_income_yoy > 0.05:
+            # if score > 50 and deduct_netprofit_yoy > 0.20 and (avg_profit > 0.2 or latest_profit > 0.2) and operate_income_yoy > 0.05:
+            if (code in gq) and score > 40 and deduct_netprofit_yoy > 0.10 and (avg_profit > 0.15 or latest_profit > 0.15) and operate_income_yoy > 0.05:
                 if i == 0:
                     sort_score = deduct_netprofit_yoy + operate_income_yoy
                     heapq.heappush(new_good, (-sort_score, code, line))
@@ -77,14 +90,14 @@ with open(GOOD, 'w') as f:
         num = count[code]
         f.write(f"count,{num},"+ line)
 
-new_hash = get_file_hash(GOOD)
+# new_hash = get_file_hash(GOOD)
 
-SEND = True
-msg = msg.format(new, removed)
+# SEND = True
+# msg = msg.format(new, removed)
 
-if new_hash != old_hash:
-    msg += '\nhash changed!'
-if SEND:
-    send_serverchan_notification("cg", msg)
-else:
-    print(msg)
+# if new_hash != old_hash:
+#     msg += '\nhash changed!'
+# if SEND:
+#     send_serverchan_notification("cg", msg)
+# else:
+#     print(msg)
