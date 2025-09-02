@@ -1,0 +1,1 @@
+python3 server.py > update.log 2>&1

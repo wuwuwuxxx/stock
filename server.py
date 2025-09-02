@@ -8,7 +8,7 @@ def run_script():
 
 run_script()
 # 每隔3小时执行一次
-schedule.every(3).hours.do(run_script)
+schedule.every(0.1).hours.do(run_script)
 
 while True:
     schedule.run_pending()

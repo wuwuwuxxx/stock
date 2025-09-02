@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import pickle
 import requests
+import akshare as ak
 
 
 def get_code_sh():
@@ -93,7 +94,54 @@ def get_file_hash(file_path):
             hasher.update(chunk)
     return hasher.hexdigest()
 
+
+def get_only_hk_stocks():
+    """
+    获取仅在港股上市、不在A股上市的公司代码列表（格式：XXXX.HK）
+    """
+    # 获取港股股票列表
+    try:
+        hk_stock_info = ak.stock_hk_spot_em()
+        hk_stocks = hk_stock_info['代码'].apply(lambda x: x + ".HK").tolist()
+    except Exception as e:
+        print("获取港股数据失败:", e)
+        return []
+
+    # 获取A股股票列表
+    try:
+        a_stock_info = ak.stock_zh_a_spot_em()
+        a_stocks = set(a_stock_info['代码'])
+        # A股中可能有B股，但我们只关心A股主体代码（6位数字）
+        a_stock_codes = set()
+        for code in a_stocks:
+            if code.startswith(('60', '68', '00', '30')):
+                a_stock_codes.add(code)
+    except Exception as e:
+        print("获取A股数据失败:", e)
+        return []
+
+    # 过滤：排除那些也在A股上市的港股（即A+H股）
+    only_hk = []
+    for hk_code in hk_stocks:
+        # 提取港股数字部分（如'00700.HK' -> '00700'）
+        base_code = hk_code.split('.')[0].lstrip('0')  # 去除前导0，便于匹配
+        if not base_code:
+            base_code = '0'  # 防止全0情况
+        # 检查是否在A股存在（A股代码通常为6位，带前导0）
+        found = False
+        for a_code in a_stock_codes:
+            # 对比去除前导0后是否相同
+            if a_code.lstrip('0') == base_code:
+                found = True
+                break
+        if not found:
+            only_hk.append(hk_code)
+
+    return sorted(only_hk)
+
+# 调用示例
 if __name__ == "__main__":
-    # update_all()
-    # show('sz300502')
-    print(get_file_hash("data/good.txt"))
+    only_hk_list = get_only_hk_stocks()
+    print("仅在港股上市的公司代码:")
+    print(only_hk_list[:20])
+    print(f"总数: {len(only_hk_list)}")
