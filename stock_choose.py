@@ -154,6 +154,7 @@ class StockChoose:
                 pass
             else:
                 assert 0, f"not supported report type {type[i]}"
+        data = data[:self.data_range]
         self._base_score(data) 
         return data
 
@@ -173,6 +174,7 @@ class StockChoose:
 
     def _get_profit_score(self):
         profit = self.df['DEDUCT_PARENT_NETPROFIT'] / self.df['OPERATE_INCOME']
+        profit = profit[:self.data_range]
         return self._calculate(profit), np.mean(profit[:4]), profit[0]
 
 
