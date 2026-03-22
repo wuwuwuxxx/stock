@@ -8,7 +8,7 @@ import sqlite3
 
 from scipy import stats
 
-from utils import get_code_sh, get_code_sz
+from utils import get_code_sh, get_code_sz, get_done_codes
 
 def update_stock():
     stock_sh = ak.stock_info_sh_name_code(symbol="主板A股")
@@ -25,7 +25,7 @@ class Stat(enum.Enum):
     Other = 3
 
 class StockChoose:
-    range = 12 # 5 years
+    range = 12 # 3 years
     def __init__(self, df: pd.DataFrame):
         self.df = df
         self.data_range = StockChoose.range
@@ -212,31 +212,30 @@ if __name__ == "__main__":
         result_dict = {}
         args.prev = i
         with open(f"data/result_{i}.pkl", 'wb') as f_all:
-            for area in [get_code_sz(), get_code_sh()]:
-                for i, code in enumerate(area):
-                    if args.code is not None:
-                        code = args.code
-                    query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1 + args.prev}"
-                    df = pd.read_sql(query, conn)
-                    if len(df) != StockChoose.range + 1 + args.prev:
-                        print(f"data is not enough for {code}")
-                        continue
-                    name: str = df['SECURITY_NAME_ABBR'][0]
-                    # st
-                    if name.startswith('S'):
-                        continue
-                    if args.prev == 0:
-                        sc = StockChoose(df)
-                    else:
-                        sc = StockChoose(df[args.prev:].copy().reset_index(drop=True))
-                    score, desc = sc.judge()
-                    org_type = df['ORG_TYPE'][0]
-                    result = f"{code},{name},{org_type},{score}{desc}\n"
+            for i, code in enumerate(get_done_codes('2025三季')):
+                if args.code is not None:
+                    code = args.code
+                query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1 + args.prev}"
+                df = pd.read_sql(query, conn)
+                if len(df) != StockChoose.range + 1 + args.prev:
+                    print(f"data is not enough for {code}")
+                    continue
+                name: str = df['SECURITY_NAME_ABBR'][0]
+                # st
+                if name.startswith('S'):
+                    continue
+                if args.prev == 0:
+                    sc = StockChoose(df)
+                else:
+                    sc = StockChoose(df[args.prev:].copy().reset_index(drop=True))
+                score, desc = sc.judge()
+                org_type = df['ORG_TYPE'][0]
+                result = f"{code},{name},{org_type},{score}{desc}\n"
 
-                    if args.code is not None:
-                        print(result)
-                        exit(0)
-                    result_dict[code] = result
+                if args.code is not None:
+                    print(result)
+                    exit(0)
+                result_dict[code] = result
             pickle.dump(result_dict, f_all)
         
     conn.close()
