@@ -7,6 +7,7 @@ import pickle
 import sqlite3
 
 from scipy import stats
+from tqdm import tqdm
 
 from utils import get_code_sh, get_code_sz, get_done_codes
 
@@ -44,10 +45,13 @@ class StockChoose:
             # if trust_score < 0.02:
             #     score += -10
             #     break
-            if data[j] < 0:
-                growth_rate = (data[j-1] - data[j]) / abs(data[j])
-            else:
-                growth_rate = (data[j-1] - data[j]) / data[j]
+            try:
+                if data[j] < 0:
+                    growth_rate = (data[j-1] - data[j]) / abs(data[j])
+                else:
+                    growth_rate = (data[j-1] - data[j]) / data[j]
+            except ZeroDivisionError:
+                growth_rate = 0
             if j == 1:
                 if yoy:
                     self.yoy = growth_rate
@@ -213,8 +217,9 @@ if __name__ == "__main__":
     for i in range(args.dur):
         result_dict = {}
         args.prev = i
+        print(f"{i+1}/{args.dur}")
         with open(f"data/result_{i}.pkl", 'wb') as f_all:
-            for i, code in enumerate(get_done_codes('2025三季')):
+            for i, code in tqdm(enumerate(get_done_codes('2025三季'))):
                 if args.code is not None:
                     code = args.code
                 query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1 + args.prev}"
