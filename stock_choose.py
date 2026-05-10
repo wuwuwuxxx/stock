@@ -37,19 +37,16 @@ class StockChoose:
     
     def _mom_score(self, data, yoy=False):
         score = self.base_score
-        # mean = np.mean(data)
-        # std = np.std(data)
-        # print(f"std {}")
         for j in range(1, min(len(data), self.data_range)):
-            # trust_score = abs(data[j] / mean)
-            # if trust_score < 0.02:
-            #     score += -10
-            #     break
             try:
-                if data[j] < 0:
-                    growth_rate = (data[j-1] - data[j]) / abs(data[j])
+                prev = data[j-1]
+                curr = data[j]
+                if pd.isna(prev) or pd.isna(curr):
+                    break
+                if curr < 0:
+                    growth_rate = (prev - curr) / abs(curr)
                 else:
-                    growth_rate = (data[j-1] - data[j]) / data[j]
+                    growth_rate = (prev - curr) / curr
             except ZeroDivisionError:
                 growth_rate = 0
             if j == 1:
@@ -72,9 +69,13 @@ class StockChoose:
         return self._mom_score(annual_sum, yoy=True)
     
     def _base_score(self, data):
+        if data.isna().all():
+            self.base_score = 0
+            return
         ret, conf = self._detect_trend(data)
-        max_value = np.max(data)
-        min_value = np.min(data)
+        clean = data.dropna()
+        max_value = np.max(clean) if len(clean) > 0 else 0
+        min_value = np.min(clean) if len(clean) > 0 else 0
         
         if min_value < 0:
             self.base_score = abs(min_value / (max_value + 0.0001)) * -10
@@ -95,22 +96,25 @@ class StockChoose:
             
     
     def _detect_trend(self, data):
-        # 线性回归分析, 4 quarter
-        x = np.arange(len(data))
-        slope, _, r_value, _, _ = stats.linregress(x, data)
+        clean = data.dropna()
+        if len(clean) < 3:
+            return Stat.Other, 0
+        x = np.arange(len(clean))
+        slope, _, r_value, _, _ = stats.linregress(x, clean)
 
-        # 存储每个年度的总和
         annual_sum = []
-        # 计算每年的总和
         for i in range(0, self.data_range, 4):
             year_total = sum(data[i:i+4])
             annual_sum.append(year_total)
 
-        x = np.arange(len(annual_sum))
-        slope_y, _, r_value_y, _, _ = stats.linregress(x, annual_sum)
+        clean_annual = pd.Series(annual_sum).dropna()
+        if len(clean_annual) < 2:
+            return Stat.Other, 0
+        x = np.arange(len(clean_annual))
+        slope_y, _, r_value_y, _, _ = stats.linregress(x, clean_annual)
 
-        stat_y, conf_y = self._get_stat(annual_sum, r_value_y, slope_y)
-        stat_q, conf_q = self._get_stat(data[:3], r_value, slope)
+        stat_y, conf_y = self._get_stat(clean_annual, r_value_y, slope_y)
+        stat_q, conf_q = self._get_stat(clean[:3], r_value, slope)
 
         if stat_y == Stat.Wave:
             return stat_y, conf_y
@@ -123,7 +127,7 @@ class StockChoose:
         elif stat_y == Stat.Other and (stat_q == Stat.Other or stat_q == Stat.Wave):
             return stat_y, 0
         else:
-            assert 0, f"not supported stat {stat_y} and {stat_q}"
+            return Stat.Other, 0
         
     def _get_stat(self, data, r_value, slope):
         # 相邻差值统计
@@ -145,21 +149,24 @@ class StockChoose:
 
     def _y2q(self, data_type: str):
         type = self.df['REPORT_TYPE']
-        data = self.df[data_type]
+        data = self.df[data_type].astype(float)
         assert len(data) >= self.data_range, f"data is not enouge"
         for i in range(self.data_range):
             if type[i] == '年报':
-                self.df.loc[(i, data_type)] = data[i] - data[i+1]
+                if not (pd.isna(data.iloc[i]) or pd.isna(data.iloc[i+1])):
+                    self.df.loc[(i, data_type)] = data.iloc[i] - data.iloc[i+1]
             elif type[i] == '三季报':
-                self.df.loc[(i, data_type)] = data[i] - data[i+1]
+                if not (pd.isna(data.iloc[i]) or pd.isna(data.iloc[i+1])):
+                    self.df.loc[(i, data_type)] = data.iloc[i] - data.iloc[i+1]
             elif type[i] == '中报':
-                self.df.loc[(i, data_type)] = data[i] - data[i+1]
+                if not (pd.isna(data.iloc[i]) or pd.isna(data.iloc[i+1])):
+                    self.df.loc[(i, data_type)] = data.iloc[i] - data.iloc[i+1]
             elif type[i] == '一季报':
                 pass
             else:
                 assert 0, f"not supported report type {type[i]}"
         data = data[:self.data_range]
-        self._base_score(data) 
+        self._base_score(data)
         return data
 
     def _get_score(self, data_type):
@@ -177,9 +184,13 @@ class StockChoose:
         return score
 
     def _get_profit_score(self):
-        profit = self.df['DEDUCT_PARENT_NETPROFIT'] / self.df['OPERATE_INCOME']
+        denominator = self.df['OPERATE_INCOME'].replace(0, np.nan).astype(float)
+        profit = self.df['DEDUCT_PARENT_NETPROFIT'].astype(float) / denominator
         profit = profit[:self.data_range]
-        return self._calculate(profit), np.mean(profit[:4]), profit[0]
+        clean = profit.dropna()
+        avg_profit = np.mean(clean[:4]) if len(clean[:4]) > 0 else 0
+        latest = clean.iloc[0] if len(clean) > 0 else 0
+        return self._calculate(profit), avg_profit, latest
 
 
     def judge(self):
@@ -206,7 +217,7 @@ if __name__ == "__main__":
     # parser.add_argument('--prev', default=0, type=int)
 
     parser.add_argument('--prev', default=0, type=int)
-    parser.add_argument('--code', default=None, type=str)
+    parser.add_argument('--code', default='sh603259', type=str)
     parser.add_argument('--dur', default=12, type=int)
 
     args = parser.parse_args()
@@ -218,6 +229,8 @@ if __name__ == "__main__":
         result_dict = {}
         args.prev = i
         print(f"{i+1}/{args.dur}")
+        if args.code is not None:
+            i = 'tmp'
         with open(f"data/result_{i}.pkl", 'wb') as f_all:
             for i, code in tqdm(enumerate(get_done_codes('2025三季'))):
                 if args.code is not None:

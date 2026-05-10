@@ -5,13 +5,14 @@ import pickle
 import random
 import sqlite3
 import time
+import traceback
 
 from utils import code_complete, get_done_codes, update_all
 from stock_choose import StockChoose
 from datetime import datetime as dt
 
-years = ["2025"]
-targets = ["半年报"]
+years = ["2025", "2026"]
+targets = ["年报", "一季"]
 
 # df = ak.stock_zh_a_spot()
 # print(df[["代码", "名称"]].head())
@@ -65,50 +66,53 @@ for period in periods:
                 print(f"{code} not found")
                 continue
 
-            format = r"%Y-%m-%d %H:%M:%S"
-            if dt.strptime(target, format) > dt.strptime(df["REPORT_DATE"][0], format):
-                print(target)
-                continue
+            try:
+                format = r"%Y-%m-%d %H:%M:%S"
+                if dt.strptime(target, format) > dt.strptime(df["REPORT_DATE"][0], format):
+                    print(target)
+                    continue
 
-            date_columns = ["REPORT_DATE", "NOTICE_DATE", "UPDATE_DATE"]
-            for col in date_columns:
-                df[col] = pd.to_datetime(df[col])
-            df.to_sql(
-                name=code,
-                con=conn,
-                if_exists="replace",  # 如果表已存在则替换
-                index=False,  # 不保存索引
-                dtype={
-                    "REPORT_DATE": "DATETIME",  # 手动指定日期类型
-                    "NOTICE_DATE": "DATETIME",
-                    "UPDATE_DATE": "DATETIME",
-                },
-            )
-            query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1}"
-            df = pd.read_sql(query, conn)
+                date_columns = ["REPORT_DATE", "NOTICE_DATE", "UPDATE_DATE"]
+                for col in date_columns:
+                    df[col] = pd.to_datetime(df[col])
+                df.to_sql(
+                    name=code,
+                    con=conn,
+                    if_exists="replace",
+                    index=False,
+                    dtype={
+                        "REPORT_DATE": "DATETIME",
+                        "NOTICE_DATE": "DATETIME",
+                        "UPDATE_DATE": "DATETIME",
+                    },
+                )
+                query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1}"
+                df = pd.read_sql(query, conn)
 
-            # with open(f"data/{period}_done.txt", 'a') as f:
-            #     f.write(f"{code}\n")
+                if len(df) != StockChoose.range + 1:
+                    print(f"data is not enough for {code}")
+                    done_this_time.append(code)
+                    continue
 
-            if len(df) != StockChoose.range + 1:
-                print(f"data is not enough for {code}")
+                print(f"{date_time}")
+
+                sc = StockChoose(df)
+                score, desc = sc.judge()
+                org_type = df["ORG_TYPE"][0]
+                name: str = df["SECURITY_NAME_ABBR"][0]
+                result = f"{code},{name},{org_type},{score}{desc}\n"
+                analysis_data[code] = result
+
+                count += 1
+                done_this_time.append(code)
+                if len(done_this_time) >= 10:
+                    break
+                time.sleep(random.uniform(5, 8))
+            except Exception as e:
+                print(f"[ERROR] {code} failed: {e}")
+                traceback.print_exc()
                 done_this_time.append(code)
                 continue
-
-            print(f"{date_time}")
-
-            sc = StockChoose(df)
-            score, desc = sc.judge()
-            org_type = df["ORG_TYPE"][0]
-            name: str = df["SECURITY_NAME_ABBR"][0]
-            result = f"{code},{name},{org_type},{score}{desc}\n"
-            analysis_data[code] = result
-
-            count += 1
-            done_this_time.append(code)
-            if len(done_this_time) >= 10:
-                break
-            time.sleep(random.uniform(5, 8))
 
     conn.close()
     for code in done_this_time:
