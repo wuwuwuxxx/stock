@@ -35,12 +35,17 @@ def is_report_season(now: dt.datetime) -> bool:
 def next_interval_minutes(now: dt.datetime) -> int:
     if is_trading_time(now):
         # 距离最近的非交易时段还有多久，避免空转
-        if now.time() < TRADING_MORNING[0]:
-            wait = (dt.datetime.combine(now.date(), TRADING_MORNING[0]) - now).total_seconds() / 60
-        elif TRADING_MORNING[1] < now.time() < TRADING_AFTERNOON[0]:
-            wait = (dt.datetime.combine(now.date(), TRADING_AFTERNOON[0]) - now).total_seconds() / 60
-        else:  # 收盘后
-            wait = (dt.datetime.combine(now.date() + dt.timedelta(days=1), TRADING_MORNING[0]) - now).total_seconds() / 60
+        if now.time() < TRADING_MORNING[0]:            # 开盘前
+            target = dt.datetime.combine(now.date(), TRADING_MORNING[0])
+        elif now.time() < TRADING_MORNING[1]:          # 早盘：等午休
+            target = dt.datetime.combine(now.date(), TRADING_MORNING[1])
+        elif now.time() < TRADING_AFTERNOON[0]:        # 午休：等午盘开盘
+            target = dt.datetime.combine(now.date(), TRADING_AFTERNOON[0])
+        elif now.time() < TRADING_AFTERNOON[1]:        # 午盘：等收盘
+            target = dt.datetime.combine(now.date(), TRADING_AFTERNOON[1])
+        else:                                          # 收盘后：等次日开盘
+            target = dt.datetime.combine(now.date() + dt.timedelta(days=1), TRADING_MORNING[0])
+        wait = (target - now).total_seconds() / 60
         return int(wait) + 1
     if is_weekend(now):
         return INTERVAL_WEEKEND_HOLIDAY

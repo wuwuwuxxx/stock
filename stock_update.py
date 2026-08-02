@@ -1,18 +1,21 @@
-import akshare as ak
 import datetime
-import pandas as pd
+import os
 import pickle
 import random
 import sqlite3
 import time
 import traceback
 
-from utils import code_complete, get_done_codes, update_all
-from stock_choose import StockChoose
+import akshare as ak
+import pandas as pd
+
 from datetime import datetime as dt
 
-years = ["2025", "2026"]
-targets = ["年报", "一季"]
+from stock_choose import StockChoose
+from utils import code_complete, get_done_codes, update_all
+
+years = ["2026"]
+targets = ["半年报"]
 
 # df = ak.stock_zh_a_spot()
 # print(df[["代码", "名称"]].head())
@@ -32,6 +35,33 @@ for year in years:
 
 periods = [year + target for year, target in zip(years, targets)]
 
+DB_NAME = "data/financial_data.db"
+SAVE_EVERY = 100
+
+
+def load_analysis_data():
+    path = "data/result_update.pkl"
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+def save_analysis_data(analysis_data):
+    with open("data/result_update.pkl", "wb") as f:
+        pickle.dump(analysis_data, f)
+
+
+def record_failed(period, code, reason):
+    with open(f"data/{period}_failed.txt", "a") as f:
+        f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {code}\t{reason}\n")
+
+
+def record_done(period, code):
+    with open(f"data/{period}_done.txt", "a") as f:
+        f.write(f"{code}\n")
+
+
 for period in periods:
     time.sleep(10)
     target = period_map[period]
@@ -42,34 +72,34 @@ for period in periods:
     except ValueError:  # error if no data
         continue
 
-    db_name = "data/financial_data.db"
+    conn = sqlite3.connect(DB_NAME)
 
-    conn = sqlite3.connect(db_name)  # 数据库文件名为financial_data.db
-
-    # with open("data/result_update.pkl", 'rb') as f:
-    #     analysis_data = pickle.load(f)
-
-    analysis_data = {}
+    analysis_data = load_analysis_data()
 
     count = 0
     dates = df["实际披露"]
     codes = df["股票代码"]
-    done_this_time = []
-    for date_time, code in zip(dates, codes):
-        if not pd.isna(date_time):
-            code = code_complete(code)
+    try:
+        for date_time, code in zip(dates, codes):
+            if pd.isna(date_time):
+                continue
+            try:
+                code = code_complete(code)
+            except Exception as e:
+                record_failed(period, code, f"bad code: {e}")
+                continue
             if code in done_codes:
                 continue
             try:
                 df = ak.stock_profit_sheet_by_report_em(symbol=code)
-            except:
-                print(f"{code} not found")
+            except Exception as e:
+                print(f"{code} not found: {e}")
+                record_failed(period, code, f"no profit sheet data: {e}")
                 continue
 
             try:
                 format = r"%Y-%m-%d %H:%M:%S"
                 if dt.strptime(target, format) > dt.strptime(df["REPORT_DATE"][0], format):
-                    print(target)
                     continue
 
                 date_columns = ["REPORT_DATE", "NOTICE_DATE", "UPDATE_DATE"]
@@ -86,12 +116,14 @@ for period in periods:
                         "UPDATE_DATE": "DATETIME",
                     },
                 )
+                conn.commit()
+
                 query = f"SELECT * FROM {code} LIMIT {StockChoose.range + 1}"
                 df = pd.read_sql(query, conn)
 
                 if len(df) != StockChoose.range + 1:
                     print(f"data is not enough for {code}")
-                    done_this_time.append(code)
+                    record_failed(period, code, "data is not enough")
                     continue
 
                 print(f"{date_time}")
@@ -104,23 +136,19 @@ for period in periods:
                 analysis_data[code] = result
 
                 count += 1
-                done_this_time.append(code)
-                if len(done_this_time) >= 10:
-                    break
+                record_done(period, code)
+                if count % SAVE_EVERY == 0:
+                    save_analysis_data(analysis_data)
                 time.sleep(random.uniform(5, 8))
             except Exception as e:
                 print(f"[ERROR] {code} failed: {e}")
                 traceback.print_exc()
-                done_this_time.append(code)
+                record_failed(period, code, str(e))
                 continue
-
-    conn.close()
-    for code in done_this_time:
-        with open(f"data/{period}_done.txt", "a") as f:
-            f.write(f"{code}\n")
+    finally:
+        save_analysis_data(analysis_data)
+        conn.close()
 
     print(f"{period}, update {count} company in {datetime.datetime.now()}")
     if count > 0:
-        with open("data/result_update.pkl", "wb") as f_all:
-            pickle.dump(analysis_data, f_all)
         update_all()
