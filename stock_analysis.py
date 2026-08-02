@@ -11,12 +11,12 @@ ALL = "data/result_{}.pkl"
 
 
 def get_prev_good():
-    codes = set()
+    codes = {}
     if os.path.exists(GOOD):
         with open(GOOD) as f:
             for line in f:
                 data = line.split(",")
-                codes.add(data[2])
+                codes[data[2]] = data[1]
     return codes
 
 
@@ -33,13 +33,12 @@ def get_done():
 old_hash = get_file_hash(GOOD)
 old_good = get_prev_good()
 done = get_done()
-old_good = old_good - done
+old_good = {k: v for k, v in old_good.items() if k not in done}
 
 new_good = []
 count = {}
-msg = "new:\n{}\nremoved:\n{}"
 
-new = ""
+new = []
 for i in range(12):
     with open(ALL.format(i), "rb") as f:
         analysis_data: dict = pickle.load(f)
@@ -66,33 +65,60 @@ for i in range(12):
                     heapq.heappush(new_good, (-sort_score, code, line))
                     count[code] = 1
                     if code not in old_good:
-                        new += f"{data[0]},{data[1]}  "
+                        new.append((code, data[1], score))
                     else:
-                        old_good.remove(code)
+                        del old_good[code]
                 else:
                     if code in count:
                         count[code] += 1
 
-removed = ""
-for v in old_good:
-    removed += f"{v}, "
+removed = []
+for v, name in old_good.items():
+    removed.append((v, name))
     warnings.warn(f"{v} is removed in the newest season")
 
 
+ranking = []
 with open(GOOD, "w") as f:
     while new_good:
         priority, code, line = heapq.heappop(new_good)
         num = count[code]
         f.write(f"count,{num}," + line)
+        data = line.split(",")
+        ranking.append((data[0], data[1], float(data[3]), num))
 
 new_hash = get_file_hash(GOOD)
 
 SEND = True
-msg = msg.format(new, removed)
+if new or removed:
+    parts = ["## 📊 财报季选股更新"]
+    if new:
+        parts.append(f"### 🆕 新增 {len(new)} 只")
+        parts += [
+            f"{i}. **{code} {name}** ({score:.0f}分)"
+            for i, (code, name, score) in enumerate(new, 1)
+        ]
+    if removed:
+        parts.append(f"### ❌ 剔除 {len(removed)} 只")
+        parts += [
+            f"{i}. **{code} {name}**" for i, (code, name) in enumerate(removed, 1)
+        ]
+    msg = "\n".join(parts)
+    if new_hash != old_hash:
+        msg += "\n> hash 已变化"
+elif new_hash != old_hash:
+    parts = ["## 📊 选股排名变化", "> 无新增/剔除，仅评分或排名变化", ""]
+    parts += [
+        f"{i}. **{code} {name}** ({score:.0f}分, 连续{num}轮)"
+        for i, (code, name, score, num) in enumerate(ranking, 1)
+    ]
+    msg = "\n".join(parts)
+else:
+    msg = ""
 
-if new_hash != old_hash:
-    msg += "\nhash changed!"
-if SEND:
+if not msg:
+    print("no change, skip notification")
+elif SEND:
     send_serverchan_notification("cg", msg)
 else:
     print(msg)

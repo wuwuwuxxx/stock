@@ -39,11 +39,8 @@ def code_complete(code: str):
         assert 0, f"not supported {code}"
         
 def send_serverchan_notification(title, message):
-    if len(message) == 15:
-        print("empty msg")
-        return
-    from web_hook import send_text
-    send_text(message)
+    from web_hook import send_markdown
+    send_markdown(message)
     # sendkey = "SCT271491T9bE1G90ylp6pK4QaQ3U8jQC4"  # 替换为你的 SendKey
     # url = f"https://sctapi.ftqq.com/{sendkey}.send"
     # data = {
