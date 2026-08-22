@@ -4,6 +4,8 @@ import time
 
 import schedule
 
+import heartbeat
+
 TRADING_MORNING = (dt.time(9, 30), dt.time(11, 30))
 TRADING_AFTERNOON = (dt.time(13, 0), dt.time(15, 0))
 
@@ -66,4 +68,9 @@ if __name__ == "__main__":
 
     while True:
         schedule.run_pending()
+        try:
+            if heartbeat.heartbeat_due(dt.datetime.now()):
+                heartbeat.send_heartbeat()
+        except Exception as e:
+            print(f"[HEARTBEAT] failed: {e}")
         time.sleep(30)
