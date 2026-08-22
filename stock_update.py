@@ -52,9 +52,25 @@ def save_analysis_data(analysis_data):
         pickle.dump(analysis_data, f)
 
 
+def get_skipped_codes(period):
+    tmp = set()
+    path = f"data/{period}_not_enough.txt"
+    if not os.path.exists(path):
+        return tmp
+    with open(path, "r") as f:
+        for line in f:
+            tmp.add(line.strip())
+    return tmp
+
+
 def record_failed(period, code, reason):
     with open(f"data/{period}_failed.txt", "a") as f:
         f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {code}\t{reason}\n")
+
+
+def record_not_enough(period, code):
+    with open(f"data/{period}_not_enough.txt", "a") as f:
+        f.write(f"{code}\n")
 
 
 def record_done(period, code):
@@ -66,6 +82,7 @@ for period in periods:
     time.sleep(10)
     target = period_map[period]
     done_codes = get_done_codes(period)
+    skipped_codes = get_skipped_codes(period)
     try:
         # 获取A股财报预约披露日期
         df = ak.stock_report_disclosure(period=period)
@@ -88,7 +105,7 @@ for period in periods:
             except Exception as e:
                 record_failed(period, code, f"bad code: {e}")
                 continue
-            if code in done_codes:
+            if code in done_codes or code in skipped_codes:
                 continue
             try:
                 df = ak.stock_profit_sheet_by_report_em(symbol=code)
@@ -123,7 +140,7 @@ for period in periods:
 
                 if len(df) != StockChoose.range + 1:
                     print(f"data is not enough for {code}")
-                    record_failed(period, code, "data is not enough")
+                    record_not_enough(period, code)
                     continue
 
                 print(f"{date_time}")
