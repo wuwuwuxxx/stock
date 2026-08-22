@@ -16,7 +16,7 @@ def get_prev_good():
         with open(GOOD) as f:
             for line in f:
                 data = line.split(",")
-                codes[data[2]] = data[1]
+                codes[data[2]] = data[3]
     return codes
 
 
@@ -32,6 +32,7 @@ def get_done():
 
 old_hash = get_file_hash(GOOD)
 old_good = get_prev_good()
+old_order = list(old_good.keys())
 done = get_done()
 old_good = {k: v for k, v in old_good.items() if k not in done}
 
@@ -89,6 +90,14 @@ with open(GOOD, "w") as f:
 
 new_hash = get_file_hash(GOOD)
 
+new_order = [code for code, *_ in ranking]
+names = {code: name for code, name, *_ in ranking}
+moved = []
+for i, code in enumerate(new_order):
+    old_pos = old_order.index(code) if code in old_order else -1
+    if old_pos != -1 and old_pos != i:
+        moved.append((code, names[code], old_pos + 1, i + 1))
+
 SEND = True
 if new or removed:
     parts = ["## 📊 财报季选股更新"]
@@ -106,11 +115,11 @@ if new or removed:
     msg = "\n".join(parts)
     if new_hash != old_hash:
         msg += "\n> hash 已变化"
-elif new_hash != old_hash:
-    parts = ["## 📊 选股排名变化", "> 无新增/剔除，仅评分或排名变化", ""]
+elif moved:
+    parts = ["## 📊 选股排名变化", "> 仅排名变化，非完整名单", ""]
     parts += [
-        f"{i}. **{code} {name}** ({score:.0f}分, 连续{num}轮)"
-        for i, (code, name, score, num) in enumerate(ranking, 1)
+        f"{i}. **{name}** ({code}) 第{old_pos}位 → 第{new_pos}位"
+        for i, (code, name, old_pos, new_pos) in enumerate(moved, 1)
     ]
     msg = "\n".join(parts)
 else:
